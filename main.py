@@ -28,12 +28,9 @@ def getLastDuplicateIndex(fingerGoal, fingeringsArray):
 
 
 def parseChords():
-    with open("completeChords.json", "r") as read_file:
+    with open("twoChordTest.json", "r") as read_file:
         data = json.load(read_file)
     for key in data:
-
-        # if len(str(key)) > 1 and str(key)[1] == "b":
-        #     continue
 
         export[key] = []
 
@@ -41,10 +38,15 @@ def parseChords():
 
             base = 1
             positions = variation["positions"]
+            # reviewing the source database, there are no chords listed with multiple fingerings
+            # therefore, variation["fingerings"][0] is able to capture everything
+            # regex to prove that there are no multi-fingering chords:
+            # "fingerings":\[\["([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)"\]^\]
             fingerings = variation["fingerings"][0]
             lowestFret = 24
             highestFret = 0
 
+            # for loop to set the lowest and highest frets in chart
             for position in positions:
 
                 if position == "x":
@@ -58,19 +60,38 @@ def parseChords():
                 if posNumber > highestFret:
                     highestFret = posNumber
 
+            # if statement to ensure the chart's base is at the lowest fingered fret if the chord has a wide range
             if highestFret >= 5:
                 base = lowestFret
 
             fingers = []
             barres = []
 
+            # for loop to transform the positions array to the fingers array in SVGuitar
+            # the desired output format here mimics the following:
+            #    fingers: [
+            #        // finger at string 1, fret 2, with text '2'
+            #        [1, 2, '2'],
+
+            #        // finger at string 2, fret 3, with text '3', colored red and has class '.red'
+            #        [2, 3, { text: '3', color: '#F00', className: 'red' }],
+
+            #        // finger is triangle shaped
+            #        [3, 3, { shape: 'triangle' }],
+            #        [6, 'x'],
+            #    ]
             for i in range(6):
+
+                isFretted = True if positions[i] != "x" and positions[i] != "0" else False
 
                 if positions[i] != "x":
                     positions[i] = 1 + int(positions[i]) - base
 
-                fingers.append([reverse(i + 1), positions[i]])
+                payload = [reverse(i + 1), positions[i], fingerings[i]] if isFretted else [reverse(i + 1), positions[i]]
 
+                fingers.append(payload)
+
+            # for loop to extract the barre information from the fingering
             for i in range(6):
                 finger = int(fingerings[i])
 
