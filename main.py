@@ -32,8 +32,8 @@ def parseChords():
         data = json.load(read_file)
     for key in data:
 
-        if len(str(key)) > 1 and str(key)[1] == "b":
-            continue
+        # if len(str(key)) > 1 and str(key)[1] == "b":
+        #     continue
 
         export[key] = []
 
