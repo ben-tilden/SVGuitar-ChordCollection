@@ -28,7 +28,7 @@ def getLastDuplicateIndex(fingerGoal, fingeringsArray):
 
 
 def parseChords():
-    with open("twoChordTest.json", "r") as read_file:
+    with open("completeChords.json", "r") as read_file:
         data = json.load(read_file)
     for key in data:
 
@@ -40,7 +40,7 @@ def parseChords():
             positions = variation["positions"]
             # reviewing the source database, there are no chords listed with multiple fingerings
             # therefore, variation["fingerings"][0] is able to capture everything
-            # regex to prove that there are no multi-fingering chords:
+            # regex to search for (non-existent) multi-fingering chords:
             # "fingerings":\[\["([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)"\]^\]
             fingerings = variation["fingerings"][0]
             lowestFret = 24
@@ -82,6 +82,7 @@ def parseChords():
             #    ]
             for i in range(6):
 
+                # prevent finger number from appearing if there are no nuts
                 isFretted = True if positions[i] != "x" and positions[i] != "0" else False
 
                 if positions[i] != "x":
@@ -132,7 +133,9 @@ def parseChords():
             for finger in fingersToRemove:
                 fingers.remove(finger)
 
-            newObject = {"title": key, "fingers": fingers, "barres": barres, "position": base}
+            # stringifying fingers here because Firestore doesn't allow for nested arrays
+            # future state may involve forking SVGuitar to alter the formatting
+            newObject = {"title": key, "fingers": json.dumps(fingers), "barres": barres, "position": base}
             export[key].append(newObject)
 
     def writeToFile(fileName):
