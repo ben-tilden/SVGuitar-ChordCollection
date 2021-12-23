@@ -93,6 +93,7 @@ def parseChords():
                 fingers.append(payload)
 
             # for loop to extract the barre information from the fingering
+            capo = False
             for i in range(6):
                 finger = int(fingerings[i])
 
@@ -109,20 +110,19 @@ def parseChords():
 
                 validBarre = True
                 for barre in barres:
-                    if barre["fret"] == positions[i]:
+                    if barre == positions[i]:
                         validBarre = False
                         break
 
                 if not validBarre:
                     continue
 
-                barres.append({
-                    "fromString": reverse(i) - 1,
-                    "toString": reverse(last) - 1,
-                    "fret": positions[i]
-                })
+                if positions[i] == "1" and all strings are played and no frets have a lower position:
+                    capo = True
 
-            fingers.reverse()
+                barres.append(positions[i])
+
+            fingers.reverse() # TODO needed?
             fingersToRemove = []
 
             for i in range(6):
@@ -133,9 +133,7 @@ def parseChords():
             for finger in fingersToRemove:
                 fingers.remove(finger)
 
-            # stringifying fingers here because Firestore doesn't allow for nested arrays
-            # future state may involve forking SVGuitar to alter the formatting
-            newObject = {"title": key, "fingers": json.dumps(fingers), "barres": barres, "position": base}
+            newObject = {"key": key, "suffix": suffix, "positions": ["frets": frets, "fingers": fingers, "barres": barres, "baseFret": base, "capo": capo]}
             export[key].append(newObject)
 
     def writeToFile(fileName):
