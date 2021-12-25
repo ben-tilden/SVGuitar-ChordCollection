@@ -7,14 +7,6 @@ import sys
 from chord import Chord
 
 
-def write(text: str):
-    sys.stdout.write(text)
-
-
-def back(range_: int):
-    for _ in range(range_):
-        sys.stdout.write("\b")
-
 def isSharpOrFlatFunc(chordName):
     if len(chordName) > 1 and (str(chordName)[1] == "#" or str(chordName)[1] == "b"):
         return True
@@ -179,16 +171,15 @@ def parseChords():
 t1 = Thread(target=parseChords, name="process")
 t1.start()
 
-write("loading...")
-i = 0
-chars = "/—\|"
-while t1.is_alive():
-    write(chars[i])
-    time.sleep(.3)
-    i += 1
-    if i == len(chars):
-        i = 0
-    back(1)
+print("Running...\033[s", end='')
 
-back(12)
-write("Done!")
+chars = "/—\|"
+
+animation = "|/-\\"
+i = 0
+while t1.is_alive():
+    print("\033[u" + animation[i % len(animation)], end="\r")
+    i += 1
+    time.sleep(0.15)
+
+print("\33[2KDone!")
