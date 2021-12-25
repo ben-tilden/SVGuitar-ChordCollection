@@ -4,7 +4,7 @@ from threading import Thread
 import time
 import sys
 
-export = {"chords": []}
+from chord import Chord
 
 
 def write(text: str):
@@ -15,28 +15,28 @@ def back(range_: int):
     for _ in range(range_):
         sys.stdout.write("\b")
 
-def isSharpOrFlatFunc(key):
-    if len(key) > 1 and (str(key)[1] == "#" or str(key)[1] == "b"):
+def isSharpOrFlatFunc(chordName):
+    if len(chordName) > 1 and (str(chordName)[1] == "#" or str(chordName)[1] == "b"):
         return True
     else:
         return False
 
-def setKey(key, isSharpOrFlat):
-    return key[:2] if isSharpOrFlat else key[:1]
+def initKey(chordName, isSharpOrFlat):
+    return chordName[:2] if isSharpOrFlat else chordName[:1]
 
-def setSuffix(key, isSharpOrFlat):
-    if len(key) == 1:
+def initSuffix(chordName, isSharpOrFlat):
+    if len(chordName) == 1:
         suffix = "major"
-    elif (not isSharpOrFlat and key[1:] == "m") or (isSharpOrFlat and key[2:] == "m"):
+    elif (not isSharpOrFlat and chordName[1:] == "m") or (isSharpOrFlat and chordName[2:] == "m"):
         suffix = "minor"
     elif isSharpOrFlat:
-        suffix = key[2:]
+        suffix = chordName[2:]
     else:
-        suffix = key[1:]
+        suffix = chordName[1:]
         
     return suffix
 
-def setHighestFret(positions):
+def initHighestFret(positions):
     highestFret = 0
 
     for position in positions:
@@ -51,7 +51,7 @@ def setHighestFret(positions):
 
     return highestFret
 
-def setBaseFret(positions, highestFret):
+def initBaseFret(positions, highestFret):
     base = 1
     lowestFret = 24
 
@@ -75,53 +75,48 @@ def setBaseFret(positions, highestFret):
 
     return base
 
-def setFingers(fingerings):
+def initFingers(fingerings):
     return [int(finger) for finger in fingerings]
 
-def setPosition(fretPosition, base):
+def initPosition(fretPosition, base):
     return -1 if fretPosition == "x" else 1 + int(fretPosition) - base
    
-def setPositions(positions, base):
-    return [setPosition(position, base) for position in positions]
+def initPositions(positions, base):
+    return [initPosition(position, base) for position in positions]
 
-def getLastDuplicateIndex(fingerGoal, fingeringsArray):
-    for f in range(len(fingeringsArray) - 1, -1, -1):
-        if int(fingeringsArray[f]) == fingerGoal:
+def getLastDuplicateIndex(fingerGoal, fingersArr):
+    for f in range(len(fingersArr) - 1, -1, -1):
+        if fingersArr[f] == fingerGoal:
             return f
 
-def setBarres(fingerings, positions):
+def initBarres(fingers, positions, baseFret):
 
     barres = []
 
     for i in range(6):
-        finger = int(fingerings[i])
 
-        if finger == 0:
+        if fingers[i] == 0:
             continue
 
-        last: int = getLastDuplicateIndex(finger, fingerings)
+        last: int = getLastDuplicateIndex(fingers[i], fingers)
 
         if last == i:
             continue
 
-        if fingerings[i] != fingerings[last] or positions[i] != positions[last]:
+        if fingers[i] != fingers[last] or positions[i] != positions[last]:
             continue
 
-        position = int(positions[i])
-
-        if position in barres:
+        if positions[i] in barres:
             continue
 
-        barres.append(position)
+        barres.append(positions[i])
 
     return barres
 
-def setCapo(barres, positions, base):
+def initCapo(barres, positions):
 
-    base = 0 if '0' in positions else base
-
-    allStringsPlayed = False if 'x' in positions else True
-    isLowestFret = True if base in barres else False
+    allStringsPlayed = False if -1 in positions else True
+    isLowestFret = True if min(positions) in barres else False
 
     return True if allStringsPlayed and isLowestFret else False
 
@@ -130,7 +125,7 @@ def setCapo(barres, positions, base):
 # {
 #   "key":"C",
 #   "suffix":"major",
-#   "frets":[-1,3,2,0,1,0],
+#   "positions":[-1,3,2,0,1,0],
 #   "fingers":[0,3,2,0,1,0],
 #   "barres":[],
 #   "baseFret":1,
@@ -143,28 +138,33 @@ def parseChords():
 
     export = {"chords": []}
 
-    for key in data:
-        for variation in data[key]:
+    for chordName in data:
+        for variation in data[chordName]:
 
-            newChord = {}
+            isSharpOrFlat = isSharpOrFlatFunc(chordName)
 
-            isSharpOrFlat = isSharpOrFlatFunc(key)
-
-            positions = variation["positions"]
+            oldPositions = variation["positions"]
             # reviewing the source database, there are no chords listed with multiple fingerings
             # therefore, variation["fingerings"][0] captures everything
-            fingerings = variation["fingerings"][0]
+            oldFingerings = variation["fingerings"][0]
 
-            newChord["key"] = setKey(key, isSharpOrFlat)
-            newChord["suffix"] = setSuffix(key, isSharpOrFlat)
-            newChord["highestFret"] = setHighestFret(positions)
-            newChord["baseFret"] = setBaseFret(positions, newChord["highestFret"])
-            newChord["frets"] = setPositions(positions, newChord["baseFret"])
-            newChord["fingers"] = setFingers(fingerings)
-            newChord["barres"] = setBarres(fingerings, positions)
-            newChord["capo"] = setCapo(newChord["barres"], positions, newChord["baseFret"])
+            key = initKey(chordName, isSharpOrFlat)
+            suffix = initSuffix(chordName, isSharpOrFlat)
 
-            export["chords"].append(newChord)
+            highestFret = initHighestFret(oldPositions)
+            baseFret = initBaseFret(oldPositions, highestFret)
+
+            positions = initPositions(oldPositions, baseFret)
+            fingers = initFingers(oldFingerings)
+
+            barres = initBarres(fingers, positions, baseFret)
+            capo = initCapo(barres, positions)
+
+            newChord = Chord(
+                key, suffix, highestFret, baseFret, positions, fingers, barres, capo
+            )
+
+            export["chords"].append(newChord.__dict__)
             
 
     def writeToFile(fileName):
