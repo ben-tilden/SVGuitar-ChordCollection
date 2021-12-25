@@ -1,117 +1,22 @@
 import json
 import os
-from threading import Thread
 import time
-import sys
+from threading import Thread
 
-from chord import Chord
+import utils.parsers as p
+from classes.chord import Chord
 
+def trackThread(thread):
+    print("Running...\033[s", end='')
 
-def isSharpOrFlatFunc(chordName):
-    if len(chordName) > 1 and (str(chordName)[1] == "#" or str(chordName)[1] == "b"):
-        return True
-    else:
-        return False
+    animation = "|/-\\"
+    i = 0
+    while thread.is_alive():
+        print("\033[u" + animation[i % len(animation)], end="\r")
+        i += 1
+        time.sleep(0.15)
 
-def initKey(chordName, isSharpOrFlat):
-    return chordName[:2] if isSharpOrFlat else chordName[:1]
-
-def initSuffix(chordName, isSharpOrFlat):
-    if len(chordName) == 1:
-        suffix = "major"
-    elif (not isSharpOrFlat and chordName[1:] == "m") or (isSharpOrFlat and chordName[2:] == "m"):
-        suffix = "minor"
-    elif isSharpOrFlat:
-        suffix = chordName[2:]
-    else:
-        suffix = chordName[1:]
-        
-    return suffix
-
-def initHighestFret(positions):
-    highestFret = 0
-
-    for position in positions:
-
-        if position == "x":
-            continue
-
-        posNumber = int(position)
-
-        if posNumber > highestFret:
-            highestFret = posNumber
-
-    return highestFret
-
-def initBaseFret(positions, highestFret):
-    base = 1
-    lowestFret = 24
-
-    for position in positions:
-
-        if position == "x":
-            continue
-
-        posNumber = int(position)
-
-        if posNumber < lowestFret:
-            lowestFret = posNumber
-
-    # there is no zero'th fret
-    if lowestFret == 0:
-        lowestFret = 1
-    # chords should have a max range of 6 frets - mostly handled on client
-    # but base should be moved to accommodate, given the standard will be 5
-    if lowestFret >= 3 or (lowestFret == 2 and highestFret >= 6):
-        base = lowestFret
-
-    return base
-
-def initFingers(fingerings):
-    return [int(finger) for finger in fingerings]
-
-def initPosition(fretPosition, base):
-    return -1 if fretPosition == "x" else 1 + int(fretPosition) - base
-   
-def initPositions(positions, base):
-    return [initPosition(position, base) for position in positions]
-
-def getLastDuplicateIndex(fingerGoal, fingersArr):
-    for f in range(len(fingersArr) - 1, -1, -1):
-        if fingersArr[f] == fingerGoal:
-            return f
-
-def initBarres(fingers, positions, baseFret):
-
-    barres = []
-
-    for i in range(6):
-
-        if fingers[i] == 0:
-            continue
-
-        last: int = getLastDuplicateIndex(fingers[i], fingers)
-
-        if last == i:
-            continue
-
-        if fingers[i] != fingers[last] or positions[i] != positions[last]:
-            continue
-
-        if positions[i] in barres:
-            continue
-
-        barres.append(positions[i])
-
-    return barres
-
-def initCapo(barres, positions):
-
-    allStringsPlayed = False if -1 in positions else True
-    isLowestFret = True if min(positions) in barres else False
-
-    return True if allStringsPlayed and isLowestFret else False
-
+    print("\33[2KDone!")
 
 # the desired output format for each chord is the following:
 # {
@@ -133,24 +38,24 @@ def parseChords():
     for chordName in data:
         for variation in data[chordName]:
 
-            isSharpOrFlat = isSharpOrFlatFunc(chordName)
+            isSharpOrFlat = p.parseSharpOrFlat(chordName)
 
             oldPositions = variation["positions"]
-            # reviewing the source database, there are no chords listed with multiple fingerings
+            # there are no chords listed in the source db with multiple fingerings
             # therefore, variation["fingerings"][0] captures everything
             oldFingerings = variation["fingerings"][0]
 
-            key = initKey(chordName, isSharpOrFlat)
-            suffix = initSuffix(chordName, isSharpOrFlat)
+            key = p.parseKey(chordName, isSharpOrFlat)
+            suffix = p.parseSuffix(chordName, isSharpOrFlat)
 
-            highestFret = initHighestFret(oldPositions)
-            baseFret = initBaseFret(oldPositions, highestFret)
+            highestFret = p.parseHighestFret(oldPositions)
+            baseFret = p.parseBaseFret(oldPositions, highestFret)
 
-            positions = initPositions(oldPositions, baseFret)
-            fingers = initFingers(oldFingerings)
+            positions = p.parsePositions(oldPositions, baseFret)
+            fingers = p.parseFingers(oldFingerings)
 
-            barres = initBarres(fingers, positions, baseFret)
-            capo = initCapo(barres, positions)
+            barres = p.parseBarres(fingers, positions, baseFret)
+            capo = p.parseCapo(barres, positions)
 
             newChord = Chord(
                 key, suffix, highestFret, baseFret, positions, fingers, barres, capo
@@ -171,15 +76,4 @@ def parseChords():
 t1 = Thread(target=parseChords, name="process")
 t1.start()
 
-print("Running...\033[s", end='')
-
-chars = "/—\|"
-
-animation = "|/-\\"
-i = 0
-while t1.is_alive():
-    print("\033[u" + animation[i % len(animation)], end="\r")
-    i += 1
-    time.sleep(0.15)
-
-print("\33[2KDone!")
+trackThread(t1)
