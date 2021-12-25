@@ -4,7 +4,7 @@ from threading import Thread
 import time
 import sys
 
-export = {}
+export = {"chords": []}
 
 
 def write(text: str):
@@ -15,126 +15,157 @@ def back(range_: int):
     for _ in range(range_):
         sys.stdout.write("\b")
 
+def isSharpOrFlatFunc(key):
+    if len(key) > 1 and (str(key)[1] == "#" or str(key)[1] == "b"):
+        return True
+    else:
+        return False
 
-def reverse(num: int):
-    reversedArray = [7, 6, 5, 4, 3, 2, 1]
-    return reversedArray[num]
+def setKey(key, isSharpOrFlat):
+    return key[:2] if isSharpOrFlat else key[:1]
 
+def setSuffix(key, isSharpOrFlat):
+    if len(key) == 1:
+        suffix = "major"
+    elif (not isSharpOrFlat and key[1:] == "m") or (isSharpOrFlat and key[2:] == "m"):
+        suffix = "minor"
+    elif isSharpOrFlat:
+        suffix = key[2:]
+    else:
+        suffix = key[1:]
+        
+    return suffix
+
+def setHighestFret(positions):
+    highestFret = 0
+
+    for position in positions:
+
+        if position == "x":
+            continue
+
+        posNumber = int(position)
+
+        if posNumber > highestFret:
+            highestFret = posNumber
+
+    return highestFret
+
+def setBaseFret(positions, highestFret):
+    base = 1
+    lowestFret = 24
+
+    for position in positions:
+
+        if position == "x":
+            continue
+
+        posNumber = int(position)
+
+        if posNumber < lowestFret:
+            lowestFret = posNumber
+
+    # there is no zero'th fret
+    if lowestFret == 0:
+        lowestFret = 1
+    # chords should have a max range of 6 frets - mostly handled on client
+    # but base should be moved to accommodate, given the standard will be 5
+    if lowestFret >= 3 or (lowestFret == 2 and highestFret >= 6):
+        base = lowestFret
+
+    return base
+
+def setFingers(fingerings):
+    return [int(finger) for finger in fingerings]
+
+def setPosition(fretPosition, base):
+    return -1 if fretPosition == "x" else 1 + int(fretPosition) - base
+   
+def setPositions(positions, base):
+    return [setPosition(position, base) for position in positions]
 
 def getLastDuplicateIndex(fingerGoal, fingeringsArray):
     for f in range(len(fingeringsArray) - 1, -1, -1):
         if int(fingeringsArray[f]) == fingerGoal:
             return f
 
+def setBarres(fingerings, positions):
 
+    barres = []
+
+    for i in range(6):
+        finger = int(fingerings[i])
+
+        if finger == 0:
+            continue
+
+        last: int = getLastDuplicateIndex(finger, fingerings)
+
+        if last == i:
+            continue
+
+        if fingerings[i] != fingerings[last] or positions[i] != positions[last]:
+            continue
+
+        position = int(positions[i])
+
+        if position in barres:
+            continue
+
+        barres.append(position)
+
+    return barres
+
+def setCapo(barres, positions, base):
+
+    base = 0 if '0' in positions else base
+
+    allStringsPlayed = False if 'x' in positions else True
+    isLowestFret = True if base in barres else False
+
+    return True if allStringsPlayed and isLowestFret else False
+
+
+# the desired output format for each chord is the following:
+# {
+#   "key":"C",
+#   "suffix":"major",
+#   "frets":[-1,3,2,0,1,0],
+#   "fingers":[0,3,2,0,1,0],
+#   "barres":[],
+#   "baseFret":1,
+#   "highestFret":3
+#   "capo": false
+# }
 def parseChords():
-    with open("completeChords.json", "r") as read_file:
+    with open("./test/twoChords.json", "r") as read_file:
         data = json.load(read_file)
+
+    export = {"chords": []}
+
     for key in data:
-
-        export[key] = []
-
         for variation in data[key]:
 
-            base = 1
+            newChord = {}
+
+            isSharpOrFlat = isSharpOrFlatFunc(key)
+
             positions = variation["positions"]
             # reviewing the source database, there are no chords listed with multiple fingerings
-            # therefore, variation["fingerings"][0] is able to capture everything
-            # regex to search for (non-existent) multi-fingering chords:
-            # "fingerings":\[\["([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)","([0-9]|x)"\]^\]
+            # therefore, variation["fingerings"][0] captures everything
             fingerings = variation["fingerings"][0]
-            lowestFret = 24
-            highestFret = 0
 
-            # for loop to set the lowest and highest frets in chart
-            for position in positions:
+            newChord["key"] = setKey(key, isSharpOrFlat)
+            newChord["suffix"] = setSuffix(key, isSharpOrFlat)
+            newChord["highestFret"] = setHighestFret(positions)
+            newChord["baseFret"] = setBaseFret(positions, newChord["highestFret"])
+            newChord["frets"] = setPositions(positions, newChord["baseFret"])
+            newChord["fingers"] = setFingers(fingerings)
+            newChord["barres"] = setBarres(fingerings, positions)
+            newChord["capo"] = setCapo(newChord["barres"], positions, newChord["baseFret"])
 
-                if position == "x":
-                    continue
-
-                posNumber = int(position)
-
-                if posNumber < lowestFret:
-                    lowestFret = posNumber
-
-                if posNumber > highestFret:
-                    highestFret = posNumber
-
-            # if statement to ensure the chart's base is at the lowest fingered fret if the chord has a wide range
-            if highestFret >= 5:
-                base = lowestFret
-
-            fingers = []
-            barres = []
-
-            # for loop to transform the positions array to the fingers array in SVGuitar
-            # the desired output format here mimics the following:
-            #    fingers: [
-            #        // finger at string 1, fret 2, with text '2'
-            #        [1, 2, '2'],
-
-            #        // finger at string 2, fret 3, with text '3', colored red and has class '.red'
-            #        [2, 3, { text: '3', color: '#F00', className: 'red' }],
-
-            #        // finger is triangle shaped
-            #        [3, 3, { shape: 'triangle' }],
-            #        [6, 'x'],
-            #    ]
-            for i in range(6):
-
-                # prevent finger number from appearing if there are no nuts
-                isFretted = True if positions[i] != "x" and positions[i] != "0" else False
-
-                if positions[i] != "x":
-                    positions[i] = 1 + int(positions[i]) - base
-
-                payload = [reverse(i + 1), positions[i], fingerings[i]] if isFretted else [reverse(i + 1), positions[i]]
-
-                fingers.append(payload)
-
-            # for loop to extract the barre information from the fingering
-            capo = False
-            for i in range(6):
-                finger = int(fingerings[i])
-
-                if finger == 0:
-                    continue
-
-                last: int = getLastDuplicateIndex(finger, fingerings)
-
-                if last == i:
-                    continue
-
-                if fingerings[i] != fingerings[last] or positions[i] != positions[last]:
-                    continue
-
-                validBarre = True
-                for barre in barres:
-                    if barre == positions[i]:
-                        validBarre = False
-                        break
-
-                if not validBarre:
-                    continue
-
-                if positions[i] == "1" and all strings are played and no frets have a lower position:
-                    capo = True
-
-                barres.append(positions[i])
-
-            fingers.reverse() # TODO needed?
-            fingersToRemove = []
-
-            for i in range(6):
-                for barre in barres:
-                    if barre["fret"] == fingers[i][1]:
-                        fingersToRemove.append(fingers[i])
-
-            for finger in fingersToRemove:
-                fingers.remove(finger)
-
-            newObject = {"key": key, "suffix": suffix, "positions": ["frets": frets, "fingers": fingers, "barres": barres, "baseFret": base, "capo": capo]}
-            export[key].append(newObject)
+            export["chords"].append(newChord)
+            
 
     def writeToFile(fileName):
         if os.path.exists(fileName):
