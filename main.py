@@ -138,7 +138,7 @@ def setCapo(barres, positions, base):
 #   "capo": false
 # }
 def parseChords():
-    with open("./test/twoChords.json", "r") as read_file:
+    with open("completeChords.json", "r") as read_file:
         data = json.load(read_file)
 
     export = {"chords": []}
